@@ -1,6 +1,0 @@
-include README.md
-include requirements.txt
-include requirements-lock-win_amd64-cp310-cu130.txt
-include train_predictor.py train_classifier.py adapt_classifier.py run_cascade.py run_analysis.py
-recursive-include docs *.md
-include docs/split_manifest.csv docs/cascade_test_windows.csv

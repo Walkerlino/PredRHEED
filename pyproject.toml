@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "predrheed"
+version = "0.3.0"
+description = "PredRHEED: RHEED pattern classification, future-frame prediction, and the five-second cascade"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "opencv-python>=4.8",
+  "scikit-image>=0.21",
+  "torch>=2.1",
+]
+
+[project.scripts]
+predrheed-revision = "predrheed.revision_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["predrheed*"]

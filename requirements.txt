@@ -1,0 +1,8 @@
+# Exact direct dependencies recorded for the paper environment.
+# Windows 11 Pro 64-bit, CPython 3.10.19, and CUDA 13.0.
+# This file is not a hash-locked transitive environment specification.
+
+numpy==1.26.2
+opencv-python==4.9.0.80
+scikit-image==0.25.2
+torch @ https://download.pytorch.org/whl/cu130/torch-2.9.1%2Bcu130-cp310-cp310-win_amd64.whl

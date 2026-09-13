@@ -182,12 +182,15 @@ class TransformerBlock(nn.Module):
             nn.Linear(d_model * mlp_ratio, d_model),
             nn.Dropout(dropout),
         )
+        # Figure 2(a) applies normalization after each residual addition.
+        self.post_norm1 = nn.LayerNorm(d_model, eps=1e-6)
+        self.post_norm2 = nn.LayerNorm(d_model, eps=1e-6)
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         normalized = self.norm1(tokens)
         attended, _ = self.attn(normalized, normalized, normalized)
-        tokens = tokens + attended
-        return tokens + self.mlp(self.norm2(tokens))
+        tokens = self.post_norm1(tokens + attended)
+        return self.post_norm2(tokens + self.mlp(self.norm2(tokens)))
 
 
 class PatchEmbedding(nn.Module):

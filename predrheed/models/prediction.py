@@ -233,8 +233,12 @@ class SelfAttentionMemory(nn.Module):
         memory_max_norm: float | None = MEMORY_MAX_NORM,
         *,
         attention_dropout: float = 0.1,
+        hidden_gate_input: bool = False,
     ) -> None:
         super().__init__()
+        if not isinstance(hidden_gate_input, bool):
+            raise TypeError("hidden_gate_input must be a Boolean")
+        self.hidden_gate_input = hidden_gate_input
         self.channels = channels
         self.d_k = channels // reduction
         self.spatial_reduction = spatial_reduction
@@ -250,9 +254,10 @@ class SelfAttentionMemory(nn.Module):
             if attention_dropout > 0.0
             else nn.Identity()
         )
-        self.W_mg = nn.Conv2d(channels, channels, kernel_size=1)
-        self.W_mo = nn.Conv2d(channels, channels, kernel_size=1)
-        self.W_mi = nn.Conv2d(channels, channels, kernel_size=1)
+        gate_channels = channels * (2 if hidden_gate_input else 1)
+        self.W_mg = nn.Conv2d(gate_channels, channels, kernel_size=1)
+        self.W_mo = nn.Conv2d(gate_channels, channels, kernel_size=1)
+        self.W_mi = nn.Conv2d(gate_channels, channels, kernel_size=1)
         self._init_weights()
 
     def _init_weights(self) -> None:
@@ -321,9 +326,18 @@ class SelfAttentionMemory(nn.Module):
 
         fused = self.W_z(torch.cat((attended_hidden, attended_memory), dim=1))
         fused = self.attn_dropout(fused)
-        output_gate = torch.sigmoid(self.W_mo(fused))
-        attended_hidden_state = output_gate * torch.tanh(self.W_mg(fused))
-        input_gate = torch.sigmoid(self.W_mi(fused))
+        return self._update_memory(fused, hidden, memory)
+
+    def _update_memory(
+        self, fused: torch.Tensor, hidden: torch.Tensor, memory: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        # Figure 3(c) supplies H_t directly to the MSAM gates alongside Z.
+        gate_input = (
+            torch.cat((fused, hidden), dim=1) if self.hidden_gate_input else fused
+        )
+        output_gate = torch.sigmoid(self.W_mo(gate_input))
+        attended_hidden_state = output_gate * torch.tanh(self.W_mg(gate_input))
+        input_gate = torch.sigmoid(self.W_mi(gate_input))
         next_memory = (
             (1 - input_gate) * memory
             + input_gate * attended_hidden_state
@@ -457,6 +471,7 @@ class MSAMConvLSTM(nn.Module):
                     self.config.spatial_reduction,
                     self.config.memory_max_norm,
                     attention_dropout=self.config.attention_dropout,
+                    hidden_gate_input=True,
                 )
             )
             self.encoder_bns.append(nn.BatchNorm2d(hidden_channels))
@@ -477,6 +492,7 @@ class MSAMConvLSTM(nn.Module):
                     self.config.spatial_reduction,
                     self.config.memory_max_norm,
                     attention_dropout=self.config.attention_dropout,
+                    hidden_gate_input=True,
                 )
             )
             self.decoder_bns.append(nn.BatchNorm2d(hidden_channels))
@@ -503,11 +519,11 @@ class MSAMConvLSTM(nn.Module):
             hidden[index], cells[index] = recurrent_layers[index](
                 layer_input, (hidden[index], cells[index])
             )
-            hidden[index], memories[index] = attention_layers[index](
+            features, memories[index] = attention_layers[index](
                 hidden[index], memories[index]
             )
-            hidden[index] = dropouts[index](batch_norms[index](hidden[index]))
-            layer_input = hidden[index]
+            # Figure 3(b) carries raw ConvLSTM h/c across time, not layer output.
+            layer_input = dropouts[index](batch_norms[index](features))
         return layer_input
 
     def forward(

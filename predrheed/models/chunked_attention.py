@@ -81,20 +81,7 @@ def sam_forward_maybe_chunked(
     Z = self.W_z(torch.cat([Z_h, Z_m], dim=1))
     Z = self.attn_dropout(Z)
 
-    output_gate = torch.sigmoid(self.W_mo(Z))
-    h_t_hat = output_gate * torch.tanh(self.W_mg(Z))
-
-    input_gate = torch.sigmoid(self.W_mi(Z))
-    m_t = (1 - input_gate) * m_prev + input_gate * h_t_hat
-
-    if self.memory_max_norm is not None:
-        m_t_norm = torch.norm(m_t, dim=1, keepdim=True).clamp(min=1e-8)
-        m_t = torch.where(
-            m_t_norm > self.memory_max_norm,
-            m_t * self.memory_max_norm / m_t_norm,
-            m_t,
-        )
-    return h_t_hat, m_t
+    return self._update_memory(Z, h_t, m_prev)
 
 
 def patch_model_chunked(model: torch.nn.Module) -> torch.nn.Module:

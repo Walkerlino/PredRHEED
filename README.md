@@ -63,8 +63,7 @@ The recorded [split assignments](docs/split_manifest.csv) and
 [30 cascade test windows](docs/cascade_test_windows.csv) are included.
 Supply experimental frames, labels, and checkpoints using the
 [data contract](docs/data_contract.md). Keep these inputs and generated
-outputs outside this repository. Experimental images, labels, trained
-weights, and stored numerical results are not included. Cascade outputs
+outputs outside this repository. Cascade outputs
 must be combined with real reference data and grouping IDs before `analyze`.
 
 ## Citation

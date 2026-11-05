@@ -3,11 +3,10 @@
 Code for **PredRHEED**, a cascaded deep-learning framework for in situ RHEED
 monitoring during ScAlN molecular beam epitaxy. `MSAMConvLSTM` predicts future
 frames, and `CNNTransformer` classifies them as `streaky`, `transition`, or
-`spotty`. The evaluated end-to-end forecast horizon is 5 seconds. The 15 s
-and 30 s configurations concern frame prediction only.
+`spotty`. The evaluated end-to-end forecast horizon is 5 seconds.
 
-The comparison models are `CNNOnly`, `TransformerOnly`, `SAConvLSTM`,
-`SimVP`, and the non-generative `DirectSeq2Label` baseline.
+The comparison models are `CNNOnly`, `TransformerOnly`, `SAConvLSTM`, and 
+`SimVP`.
 
 ```text
 PredRHEED-Model/
@@ -53,9 +52,7 @@ with `python` from this directory. Package installation is optional.
 | 4 | `run_analysis.py` | Run `ablation`, `seq2label`, or `analyze` with the required inputs |
 
 [Commands and evaluation rules](docs/revision_analysis.md) give complete
-examples. Use `python SCRIPT.py --help` for options. Training defaults to
-seed 2025, with cuDNN deterministic mode enabled and benchmark mode disabled.
-CUDA is used when available, with CPU fallback.
+examples. Use `python SCRIPT.py --help` for options. CUDA is used when available, with CPU fallback.
 
 ## Data and weights
 

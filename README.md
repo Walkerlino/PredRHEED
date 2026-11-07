@@ -5,8 +5,6 @@ monitoring during ScAlN molecular beam epitaxy. `MSAMConvLSTM` predicts future
 frames, and `CNNTransformer` classifies them as `streaky`, `transition`, or
 `spotty`. The evaluated end-to-end forecast horizon is 5 seconds.
 
-The comparison models are `SAConvLSTM` and `SimVP`.
-
 ```text
 PredRHEED-Model/
 ├── train_predictor.py

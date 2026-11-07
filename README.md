@@ -62,10 +62,6 @@ Supply experimental frames, labels, and checkpoints using the
 outputs outside this repository. Cascade outputs
 must be combined with real reference data and grouping IDs before `analyze`.
 
-The released training and adaptation scripts omit some settings used for the
-reported training runs. These settings are available from the corresponding
-authors upon reasonable request.
-
 ## Citation
 
 P. Gao, M. M. H. Tanim, W. Wang, G. Baker, J. Chen, Z. Wang, J. Liu, Y. Wei,

@@ -14,8 +14,8 @@ PredRHEED-Model/
 ├── adapt_classifier.py
 ├── run_cascade.py
 ├── run_analysis.py
-├── predrheed/          # Models, data preparation, training, and evaluation
-├── docs/               # Data formats and experiment instructions
+├── predrheed/          
+├── docs/              
 └── requirements.txt
 ```
 
@@ -49,9 +49,6 @@ with `python` from this directory. Package installation is optional.
 | 2 | `adapt_classifier.py` | Adapt the classifier using the prepared adaptation bundle and test-monitoring inputs |
 | 3 | `run_cascade.py` | Load both checkpoints and predict five future pattern labels |
 | 4 | `run_analysis.py` | Run `ablation`, `seq2label`, or `analyze` with the required inputs |
-
-[Commands and evaluation rules](docs/usage.md) give complete
-examples. Use `python SCRIPT.py --help` for options. CUDA is used when available, with CPU fallback.
 
 ## Data and weights
 

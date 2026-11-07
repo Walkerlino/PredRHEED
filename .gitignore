@@ -16,7 +16,5 @@
 !predrheed/**/
 !predrheed/**/*.py
 !docs/
-!docs/data_contract.md
-!docs/revision_analysis.md
 !docs/split_manifest.csv
 !docs/cascade_test_windows.csv

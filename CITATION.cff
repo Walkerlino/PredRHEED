@@ -1,0 +1,68 @@
+cff-version: 1.2.0
+message: "If you use this code or build on the PredRHEED framework, please cite it as below."
+title: "PredRHEED: A Cascaded Deep-Learning Framework for In Situ RHEED Monitoring During ScAlN Molecular Beam Epitaxy"
+type: software
+version: "0.3.0"
+date-released: "2026-11-06"
+repository-code: "https://github.com/Walkerlino/PredRHEED"
+abstract: >-
+  PredRHEED is a cascaded deep-learning framework for in situ reflection
+  high-energy electron diffraction (RHEED) monitoring during ScAlN molecular
+  beam epitaxy. A memory-enhanced self-attention convolutional long short-term
+  memory (MSAM-ConvLSTM) predictor forecasts future RHEED frames from 15 s of
+  observed frames, and a CNN-Transformer hybrid classifier assigns the
+  predicted frames to the streaky, transition, or spotty RHEED-pattern class.
+  The evaluated end-to-end forecast horizon is 5 s.
+keywords:
+  - reflection high-energy electron diffraction
+  - RHEED
+  - molecular beam epitaxy
+  - MBE
+  - ScAlN
+  - RHEED-pattern classification
+  - future-frame prediction
+  - cascaded deep-learning framework
+authors:
+  - given-names: "Peisen"
+    family-names: "Gao"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Md Mehedi Hasan"
+    family-names: "Tanim"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Weinuo"
+    family-names: "Wang"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Graham"
+    family-names: "Baker"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Jiayu"
+    family-names: "Chen"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Ziyi"
+    family-names: "Wang"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Jiangnan"
+    family-names: "Liu"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Yucheng"
+    family-names: "Wei"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Danhao"
+    family-names: "Wang"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Qing"
+    family-names: "Qu"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+  - given-names: "Zetian"
+    family-names: "Mi"
+    affiliation: "Department of Electrical Engineering and Computer Science, University of Michigan"
+contact:
+  - given-names: "Md Mehedi Hasan"
+    family-names: "Tanim"
+    email: "mhtanim@umich.edu"
+  - given-names: "Qing"
+    family-names: "Qu"
+    email: "qingqu@umich.edu"
+  - given-names: "Zetian"
+    family-names: "Mi"
+    email: "ztmi@umich.edu"

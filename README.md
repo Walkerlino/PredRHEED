@@ -30,12 +30,7 @@ python -m pip install -r requirements.txt
 [requirements.txt](requirements.txt) targets Windows x64 and CPython 3.10.
 The reported paper environment is Windows 11 Pro 64-bit, Python 3.10.19,
 PyTorch 2.9.1 with CUDA 13.0 and cuDNN 9.12.0, and one RTX 5090 with 32 GB
-of memory. To install the [hash-checked runtime closure](requirements-lock-win_amd64-cp310-cu130.txt)
-instead of the direct-dependency list:
-
-```powershell
-python -m pip install --require-hashes -r requirements-lock-win_amd64-cp310-cu130.txt
-```
+of memory. 
 
 The lock covers runtime dependencies, excluding the operating system, NVIDIA
 driver, build tools, and research inputs and outputs. The scripts run directly

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset, get_worker_info
+from torch.utils.data import DataLoader, Dataset
 
 from predrheed.data.adaptation import AdaptationBundle
 from predrheed.models.classification import CNNTransformer
@@ -24,62 +24,6 @@ from predrheed.training.common import (
 )
 
 
-@dataclass(frozen=True, slots=True)
-class AdaptationAugmentationContract:
-
-    brightness_range: tuple[float, float] = (0.8, 1.2)
-    noise_std: float = 0.02
-    erase_probability: float = 0.5
-    erase_area_range: tuple[float, float] = (0.05, 0.15)
-    erase_aspect_range: tuple[float, float] = (0.3, 3.3)
-    clip_range: tuple[float, float] = (0.0, 1.0)
-
-    def __post_init__(self) -> None:
-        for name in ("brightness_range", "erase_area_range", "erase_aspect_range", "clip_range"):
-            value = getattr(self, name)
-            if (
-                not isinstance(value, tuple)
-                or len(value) != 2
-                or not all(isinstance(item, (int, float)) for item in value)
-                or value[0] > value[1]
-            ):
-                raise TrainingContractError(f"{name} must be an ordered (low, high) tuple")
-        if not isinstance(self.noise_std, (int, float)) or self.noise_std < 0:
-            raise TrainingContractError("noise_std must be nonnegative")
-        if not 0 <= self.erase_probability <= 1:
-            raise TrainingContractError("erase_probability must be in [0, 1]")
-
-
-ADAPTATION_AUGMENTATION = AdaptationAugmentationContract()
-
-
-def augment_adaptation_image(
-    image: np.ndarray,
-    rng: np.random.Generator,
-    profile: AdaptationAugmentationContract = ADAPTATION_AUGMENTATION,
-) -> np.ndarray:
-
-    if image.ndim < 2:
-        raise TrainingContractError("adaptation image must have at least two dimensions")
-    low, high = profile.brightness_range
-    image = image * rng.uniform(low, high)
-    image = image + rng.normal(0.0, profile.noise_std, size=image.shape).astype(np.float32)
-    if rng.random() < profile.erase_probability:
-        height, width = image.shape[-2], image.shape[-1]
-        area_low, area_high = profile.erase_area_range
-        aspect_low, aspect_high = profile.erase_aspect_range
-        area = rng.uniform(area_low, area_high) * height * width
-        aspect = rng.uniform(aspect_low, aspect_high)
-        erase_height = int(np.sqrt(area * aspect))
-        erase_width = int(np.sqrt(area / aspect))
-        if 1 <= erase_height < height and 1 <= erase_width < width:
-            y0 = int(rng.integers(0, height - erase_height))
-            x0 = int(rng.integers(0, width - erase_width))
-            image[..., y0 : y0 + erase_height, x0 : x0 + erase_width] = float(rng.random())
-    clip_low, clip_high = profile.clip_range
-    return np.clip(image, clip_low, clip_high).astype(np.float32)
-
-
 class AdaptationDataset(Dataset):
 
     def __init__(
@@ -89,7 +33,6 @@ class AdaptationDataset(Dataset):
         *,
         training: bool,
         rng: np.random.Generator,
-        augmentation: AdaptationAugmentationContract = ADAPTATION_AUGMENTATION,
     ) -> None:
         frames = np.asarray(frames)
         labels = np.asarray(labels)
@@ -108,21 +51,12 @@ class AdaptationDataset(Dataset):
         self.training = bool(training)
         self.rng = rng
         self._worker_rng: np.random.Generator | None = None
-        self.augmentation = augmentation
 
     def __len__(self) -> int:
         return len(self.frames)
 
     def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
         image = self.frames[index].copy()
-        if self.training:
-            rng = self.rng
-            worker_info = get_worker_info()
-            if worker_info is not None:
-                if self._worker_rng is None:
-                    self._worker_rng = np.random.default_rng(worker_info.seed)
-                rng = self._worker_rng
-            image = augment_adaptation_image(image, rng, self.augmentation)
         image3 = np.repeat(image, 3, axis=0)
         return torch.from_numpy(image3), int(self.labels[index])
 
@@ -206,26 +140,6 @@ def adaptation_learning_rate(
     t = (step - warmup_steps) / max(1, cosine_steps)
     t = min(1.0, max(0.0, t))
     return minimum + 0.5 * (learning_rate - minimum) * (1 + np.cos(np.pi * t))
-
-
-def adaptation_class_weights(
-    labels: np.ndarray,
-    *,
-    num_classes: int = 3,
-) -> torch.Tensor:
-
-    label_array = np.asarray(labels)
-    if label_array.ndim != 1 or not np.issubdtype(label_array.dtype, np.integer):
-        raise TrainingContractError("labels must be a one-dimensional integer array")
-    if label_array.size == 0:
-        raise TrainingContractError("labels must not be empty")
-    if label_array.min() < 0 or label_array.max() >= num_classes:
-        raise TrainingContractError("labels must be zero-based within the class range")
-    label_tensor = torch.as_tensor(label_array, dtype=torch.long)
-    counts = torch.bincount(label_tensor, minlength=num_classes)
-    if torch.any(counts == 0).item():
-        raise TrainingContractError("every class must be present in the adaptation pool")
-    return label_tensor.numel() / (num_classes * counts.to(torch.float32))
 
 
 def set_cnn_trainable(model: torch.nn.Module, trainable: bool) -> None:
@@ -538,7 +452,6 @@ def _fit_adaptation_configured(
     *,
     device: str | torch.device,
     profile: AdaptationTrainingContract,
-    class_weights: torch.Tensor,
     checkpoint_dir: str | Path | None,
     test_epoch_evaluation: TestCascadeEpochEvaluation | None,
 ) -> AdaptationFitSummary:
@@ -556,7 +469,6 @@ def _fit_adaptation_configured(
     criterion = LabelSmoothingCrossEntropy(
         num_classes=profile.num_classes,
         smoothing=profile.label_smoothing,
-        class_weights=class_weights,
     )
     optimizer = build_adaptation_optimizer(model, profile)
     set_cnn_trainable(model, False)
@@ -686,9 +598,7 @@ def fit_adapted_classifier(
     bundle: AdaptationBundle,
     initial_checkpoint: str | Path,
     profile: AdaptationTrainingContract = ADAPTATION_TRAINING,
-    augmentation: AdaptationAugmentationContract = ADAPTATION_AUGMENTATION,
     checkpoint_dir: str | Path | None = None,
-    class_weights: torch.Tensor | None = None,
     test_epoch_evaluation: TestCascadeEpochEvaluation | None = None,
     device: str | torch.device | None = None,
     seed: int = PAPER_SEED,
@@ -698,10 +608,6 @@ def fit_adapted_classifier(
         raise TrainingContractError("bundle must be an AdaptationBundle")
     if not isinstance(profile, AdaptationTrainingContract):
         raise TrainingContractError("profile must be an AdaptationTrainingContract")
-    if not isinstance(augmentation, AdaptationAugmentationContract):
-        raise TrainingContractError(
-            "augmentation must be an AdaptationAugmentationContract"
-        )
     if checkpoint_dir is None:
         raise TrainingContractError(
             "checkpoint_dir is required for the paper adaptation workflow"
@@ -730,14 +636,12 @@ def fit_adapted_classifier(
         bundle.labels,
         training=True,
         rng=np.random.default_rng(seed),
-        augmentation=augmentation,
     )
     validation_dataset = AdaptationDataset(
         bundle.validation_frames,
         bundle.validation_labels,
         training=False,
         rng=np.random.default_rng(seed + 1),
-        augmentation=augmentation,
     )
     pin_memory = profile.pin_memory and resolved_device.type == "cuda"
     training_loader = DataLoader(
@@ -754,26 +658,19 @@ def fit_adapted_classifier(
         num_workers=profile.num_workers,
         pin_memory=pin_memory,
     )
-    if class_weights is None:
-        class_weights = adaptation_class_weights(
-            bundle.labels, num_classes=profile.num_classes
-        )
     return _fit_adaptation_configured(
         model,
         training_loader,
         validation_loader,
         device=resolved_device,
         profile=profile,
-        class_weights=class_weights,
         checkpoint_dir=checkpoint_dir,
         test_epoch_evaluation=test_epoch_evaluation,
     )
 
 
 __all__ = [
-    "ADAPTATION_AUGMENTATION",
     "ADAPTATION_TRAINING",
-    "AdaptationAugmentationContract",
     "AdaptationDataset",
     "TestCascadeEpochEvaluation",
     "AdaptationEpochRecord",
@@ -783,9 +680,7 @@ __all__ = [
     "PAPER_FORECAST_STEPS",
     "PAPER_FRAME_LABELS_PER_SECOND",
     "PAPER_TEST_WINDOW_COUNT",
-    "adaptation_class_weights",
     "adaptation_learning_rate",
-    "augment_adaptation_image",
     "build_adaptation_optimizer",
     "dominant_class_mask",
     "dominant_proportion_evaluation",

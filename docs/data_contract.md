@@ -77,4 +77,4 @@ architecture and checkpoints.
 Align all arrays to the same windows. `cluster_ids` groups bootstrap samples;
 `segment_ids` groups leave-one-segment-out analysis. Add real references and
 grouping IDs to cascade predictions to form this input. See the
-[commands and evaluation rules](revision_analysis.md).
+[commands and evaluation rules](usage.md).

@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-predrheed-revision = "predrheed.revision_cli:main"
+predrheed-analysis = "predrheed.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

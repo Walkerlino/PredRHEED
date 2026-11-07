@@ -9,8 +9,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 from predrheed.data.datasets import ClassificationBundle, ClassificationDataset
-from predrheed.data.schema import PATTERN_CLASSES
-from predrheed.models.classification import CNNOnly, CNNTransformer, TransformerOnly
+from predrheed.models.classification import CNNTransformer
 
 from predrheed.training.common import (
     OptimizerContract,
@@ -23,23 +22,7 @@ from predrheed.training.common import (
 )
 
 
-@dataclass(frozen=True, slots=True)
-class ClassificationAugmentationContract:
-
-    brightness_probability: float = 0.3
-    brightness_range: tuple[float, float] = (0.8, 1.2)
-    noise_probability: float = 0.3
-    noise_std: float = 0.02
-    erase_probability: float = 0.2
-    erase_height_range: tuple[float, float] = (0.05, 0.15)
-    erase_width_range: tuple[float, float] = (0.05, 0.15)
-    clamp_range: tuple[float, float] = (0.0, 1.0)
-
-
-CLASSIFICATION_AUGMENTATION = ClassificationAugmentationContract()
-
-
-ClassifierModelName = Literal["cnn_transformer", "cnn_only", "transformer_only"]
+ClassifierModelName = Literal["cnn_transformer"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,26 +35,13 @@ class WarmupCosineClassifierSchedulerContract:
 
 
 @dataclass(frozen=True, slots=True)
-class PlateauClassifierSchedulerContract:
-    kind: Literal["plateau"] = "plateau"
-    mode: Literal["min"] = "min"
-    factor: float = 0.7
-    patience: int = 10
-    min_lr: float = 1e-7
-    step_unit: Literal["epoch"] = "epoch"
-
-
-@dataclass(frozen=True, slots=True)
 class ClassifierTrainingContract:
 
-    source_name: Literal["cnn_transformer", "cnn_only", "transformer_only"]
+    source_name: Literal["cnn_transformer"]
     batch_size: int
     max_epochs: int
     optimizer: OptimizerContract
-    scheduler: (
-        WarmupCosineClassifierSchedulerContract
-        | PlateauClassifierSchedulerContract
-    )
+    scheduler: WarmupCosineClassifierSchedulerContract
     label_smoothing: float
     gradient_clip_norm: float
     early_stopping_patience: int
@@ -118,32 +88,6 @@ CNN_TRANSFORMER_TRAINING = ClassifierTrainingContract(
     label_smoothing=0.1,
     gradient_clip_norm=1.0,
     early_stopping_patience=35,
-    num_workers=0,
-    pin_memory=True,
-)
-
-CNN_ONLY_TRAINING = ClassifierTrainingContract(
-    source_name="cnn_only",
-    batch_size=32,
-    max_epochs=130,
-    optimizer=_CLASSIFIER_ADAM,
-    scheduler=PlateauClassifierSchedulerContract(),
-    label_smoothing=0.2,
-    gradient_clip_norm=1.0,
-    early_stopping_patience=30,
-    num_workers=0,
-    pin_memory=True,
-)
-
-TRANSFORMER_ONLY_TRAINING = ClassifierTrainingContract(
-    source_name="transformer_only",
-    batch_size=32,
-    max_epochs=130,
-    optimizer=_CLASSIFIER_ADAM,
-    scheduler=PlateauClassifierSchedulerContract(),
-    label_smoothing=0.2,
-    gradient_clip_norm=1.0,
-    early_stopping_patience=30,
     num_workers=0,
     pin_memory=True,
 )
@@ -201,44 +145,6 @@ class LabelSmoothingCrossEntropy(torch.nn.Module):
         return loss.mean()
 
 
-def augment_classifier_image(
-    image: torch.Tensor,
-    profile: ClassificationAugmentationContract = CLASSIFICATION_AUGMENTATION,
-) -> torch.Tensor:
-
-    if image.ndim != 3 or image.shape[0] != 3:
-        raise TrainingContractError("classifier image must have shape (3, H, W)")
-    augmented = image.clone()
-
-    if torch.rand(1).item() < profile.brightness_probability:
-        low, high = profile.brightness_range
-        factor = low + (high - low) * torch.rand(1).item()
-        augmented = augmented * factor
-
-    if torch.rand(1).item() < profile.noise_probability:
-        augmented = augmented + torch.randn_like(augmented) * profile.noise_std
-
-    if torch.rand(1).item() < profile.erase_probability:
-        channels, height, width = augmented.shape
-        height_low, height_high = profile.erase_height_range
-        width_low, width_high = profile.erase_width_range
-        erase_height = int(
-            height
-            * (height_low + (height_high - height_low) * torch.rand(1).item())
-        )
-        erase_width = int(
-            width * (width_low + (width_high - width_low) * torch.rand(1).item())
-        )
-        y_start = torch.randint(0, height - erase_height, (1,)).item()
-        x_start = torch.randint(0, width - erase_width, (1,)).item()
-        augmented[:, y_start : y_start + erase_height, x_start : x_start + erase_width] = (
-            torch.rand(channels, erase_height, erase_width)
-        )
-
-    low, high = profile.clamp_range
-    return torch.clamp(augmented, low, high)
-
-
 class _ClassificationTrainingDataset(Dataset):
 
     def __init__(self, dataset: ClassificationDataset, *, training: bool) -> None:
@@ -251,40 +157,12 @@ class _ClassificationTrainingDataset(Dataset):
     def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
         frame, label = self._dataset[index]
         tensor = torch.as_tensor(frame, dtype=torch.float32)
-        if self.training:
-            tensor = augment_classifier_image(tensor)
         return tensor, label
-
-
-def balanced_class_weights(
-    bundle: ClassificationBundle,
-    *,
-    num_classes: int = 3,
-) -> torch.Tensor:
-
-    labels = [
-        PATTERN_CLASSES.index(pattern_class)
-        for pattern_class, split in zip(bundle.pattern_classes, bundle.splits)
-        if split == "train"
-    ]
-    if not labels:
-        raise TrainingContractError("classification training split must not be empty")
-    label_tensor = torch.tensor(labels, dtype=torch.long)
-    counts = torch.bincount(label_tensor, minlength=num_classes)
-    if counts.shape != (num_classes,) or torch.any(counts == 0).item():
-        raise TrainingContractError(
-            "every pattern class must be present in the training split"
-        )
-    return label_tensor.numel() / (num_classes * counts.to(torch.float32))
 
 
 def _build_classifier_model(model_name: ClassifierModelName) -> torch.nn.Module:
     if model_name == "cnn_transformer":
         return CNNTransformer()
-    if model_name == "cnn_only":
-        return CNNOnly()
-    if model_name == "transformer_only":
-        return TransformerOnly()
     raise TrainingContractError(f"unknown classifier model: {model_name!r}")
 
 
@@ -293,10 +171,6 @@ def _expected_classifier_profile(
 ) -> ClassifierTrainingContract:
     if model_name == "cnn_transformer":
         return CNN_TRANSFORMER_TRAINING
-    if model_name == "cnn_only":
-        return CNN_ONLY_TRAINING
-    if model_name == "transformer_only":
-        return TRANSFORMER_ONLY_TRAINING
     raise TrainingContractError(f"unknown classifier model: {model_name!r}")
 
 
@@ -320,7 +194,7 @@ def build_classifier_optimizer(
 @dataclass(frozen=True, slots=True)
 class ClassifierScheduler:
     scheduler: object
-    step_unit: Literal["batch", "validation_loss"]
+    step_unit: Literal["batch"]
 
 
 def build_classifier_scheduler(
@@ -353,14 +227,7 @@ def build_classifier_scheduler(
         )
         return ClassifierScheduler(scheduler=scheduler, step_unit="batch")
 
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        mode=contract.mode,
-        factor=contract.factor,
-        patience=contract.patience,
-        min_lr=contract.min_lr,
-    )
-    return ClassifierScheduler(scheduler=scheduler, step_unit="validation_loss")
+    raise TrainingContractError(f"unsupported classifier scheduler: {contract!r}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -526,9 +393,6 @@ def _fit_classifier_configured(
         training_history.append(training_metrics)
         validation_history.append(validation_metrics)
 
-        if scheduler.step_unit == "validation_loss":
-            scheduler.scheduler.step(validation_metrics.loss)
-
         if validation_metrics.accuracy > best_validation_accuracy:
             best_validation_accuracy = validation_metrics.accuracy
             best_epoch = epoch_index + 1
@@ -589,10 +453,6 @@ def fit_classifier(
         num_workers=profile.num_workers,
         pin_memory=profile.pin_memory,
     )
-    class_weights = balanced_class_weights(
-        bundle,
-        num_classes=profile.num_classes,
-    )
     return _fit_classifier_configured(
         model,
         training_loader,
@@ -600,5 +460,4 @@ def fit_classifier(
         device=resolved_device,
         profile=profile,
         checkpoint_path=checkpoint_path,
-        class_weights=class_weights,
     )

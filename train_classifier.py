@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import get_args
 
 from predrheed.data.datasets import ClassificationBundle
-from predrheed.revision_cli import _device_argument, _validate_output_target, _write_json
+from predrheed.cli import _device_argument, _validate_output_target, _write_json
 from predrheed.training.classification import ClassifierModelName, fit_classifier
 from predrheed.training.common import PAPER_SEED
 

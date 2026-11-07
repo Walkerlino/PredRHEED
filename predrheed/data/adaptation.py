@@ -19,10 +19,6 @@ TOTAL_STEPS: Final[int] = INPUT_STEPS + FORECAST_STEPS
 PREDICTOR_FRAME_SHAPE: Final[tuple[int, int]] = (128, 128)
 CLASSIFIER_SIZE_WH: Final[tuple[int, int]] = (64, 32)
 
-SSIM_KEEP_THRESHOLD: Final[float] = 0.75
-PIXEL_STD_LOWER: Final[float] = 0.03
-PIXEL_STD_UPPER: Final[float] = 0.06
-
 _ADAPTATION_KEYS = frozenset(
     {
         "frames",
@@ -354,8 +350,8 @@ def gt_mode_seed_labels(target_per_frame: np.ndarray) -> np.ndarray:
 def pixel_std_band_mask(
     frames: np.ndarray,
     *,
-    lower: float = PIXEL_STD_LOWER,
-    upper: float | None = PIXEL_STD_UPPER,
+    lower: float,
+    upper: float | None,
 ) -> np.ndarray:
 
     frames = np.asarray(frames)
@@ -409,9 +405,9 @@ def build_adaptation_set(
     original_validation_labels: np.ndarray,
     predictor: torch.nn.Module,
     predicted_frame_labels: np.ndarray | None = None,
-    ssim_threshold: float = SSIM_KEEP_THRESHOLD,
-    pixel_std_lower: float = PIXEL_STD_LOWER,
-    pixel_std_upper: float | None = PIXEL_STD_UPPER,
+    ssim_threshold: float,
+    pixel_std_lower: float,
+    pixel_std_upper: float | None,
     device: str | torch.device | None = None,
     predictor_batch_size: int = 4,
 ) -> AdaptationBundle:
@@ -531,10 +527,7 @@ __all__ = [
     "FORECAST_STEPS",
     "FRAMES_PER_SECOND",
     "INPUT_STEPS",
-    "PIXEL_STD_LOWER",
-    "PIXEL_STD_UPPER",
     "PREDICTOR_FRAME_SHAPE",
-    "SSIM_KEEP_THRESHOLD",
     "TOTAL_STEPS",
     "assert_no_test_second_leakage",
     "build_adaptation_set",

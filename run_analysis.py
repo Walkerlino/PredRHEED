@@ -1,4 +1,4 @@
-from predrheed.revision_cli import main
+from predrheed.cli import main
 
 
 if __name__ == "__main__":

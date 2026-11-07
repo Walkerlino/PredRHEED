@@ -26,7 +26,6 @@ from predrheed.training.common import (
     set_reproducible_seeds,
 )
 from predrheed.training.prediction import (
-    BLOCKED_RUNNER_AUGMENTATION,
     PREDICTOR_5S_TRAINING,
     PredictionFitSummary,
     _PredictionTrainingDataset,
@@ -45,8 +44,6 @@ AblationVariantName = Literal[
 
 MemoryProfileName = Literal["batch4", "batch2_accum2", "batch1_accum4"]
 
-
-ABLATION_SEEDS: tuple[int, int, int] = (2025, 2026, 2027)
 
 ABLATION_VARIANTS: dict[AblationVariantName, MSAMConvLSTMConfig] = {
     "full_repro": MSAMConvLSTMConfig(),
@@ -165,7 +162,6 @@ def _evaluate_ablation_test_metrics(
         PredictionDataset(bundle, test_windows),
         input_steps=_INPUT_STEPS,
         target_steps=_TARGET_STEPS,
-        augmentation_profile=None,
     )
     test_loader = DataLoader(
         test_dataset,
@@ -263,13 +259,11 @@ def fit_msam_ablation(
         PredictionDataset(bundle, training_windows),
         input_steps=_INPUT_STEPS,
         target_steps=_TARGET_STEPS,
-        augmentation_profile=BLOCKED_RUNNER_AUGMENTATION,
     )
     validation_dataset = _PredictionTrainingDataset(
         PredictionDataset(bundle, validation_windows),
         input_steps=_INPUT_STEPS,
         target_steps=_TARGET_STEPS,
-        augmentation_profile=None,
     )
     shuffle_generator = torch.Generator()
     shuffle_generator.manual_seed(seed)
@@ -349,7 +343,6 @@ def fit_msam_ablation(
 
 
 __all__ = [
-    "ABLATION_SEEDS",
     "ABLATION_VARIANTS",
     "AblationRunRecord",
     "AblationVariantName",

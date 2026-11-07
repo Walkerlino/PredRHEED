@@ -25,11 +25,7 @@ from predrheed.training.common import (
     set_reproducible_seeds,
 )
 from predrheed.training.prediction import (
-    BLOCKED_RUNNER_AUGMENTATION,
-    PredictionAugmentationContract,
     PredictionSchedulerContract,
-    _opencv_resize_frame,
-    augment_prediction_sequence,
     build_predictor_scheduler,
 )
 
@@ -210,35 +206,6 @@ def build_labels5(
     return labels5
 
 
-def balanced_seq2label_weights(
-    train_targets: np.ndarray,
-    *,
-    num_classes: int = 3,
-) -> torch.Tensor:
-
-    if isinstance(num_classes, bool) or not isinstance(num_classes, int) or num_classes <= 1:
-        raise TrainingContractError("num_classes must be an integer greater than one")
-    targets = np.asarray(train_targets)
-    if targets.ndim != 1 or targets.size == 0:
-        raise TrainingContractError(
-            "train_targets must be a nonempty one-dimensional array"
-        )
-    if not np.issubdtype(targets.dtype, np.integer):
-        raise TrainingContractError("train_targets must have an integer dtype")
-    if int(targets.min()) < UNRESOLVED_LABEL or int(targets.max()) >= num_classes:
-        raise TrainingContractError("train_targets contains an out-of-range label")
-    resolved_targets = targets[targets != UNRESOLVED_LABEL]
-    if resolved_targets.size == 0:
-        raise TrainingContractError("train_targets contains no resolved labels")
-    counts = np.bincount(resolved_targets, minlength=num_classes)
-    if np.any(counts == 0):
-        raise TrainingContractError(
-            "every class must be present in the training targets"
-        )
-    weights = resolved_targets.size / (num_classes * counts.astype(np.float64))
-    return torch.tensor(weights, dtype=torch.float32)
-
-
 class _Seq2LabelTrainingDataset(Dataset):
 
     def __init__(
@@ -249,7 +216,6 @@ class _Seq2LabelTrainingDataset(Dataset):
         *,
         input_steps: int,
         horizons: int,
-        augmentation_profile: PredictionAugmentationContract | None,
     ) -> None:
         if len(dataset) != len(windows):
             raise TrainingContractError(
@@ -270,7 +236,6 @@ class _Seq2LabelTrainingDataset(Dataset):
         self._labels5 = labels5
         self.input_steps = input_steps
         self.horizons = horizons
-        self.augmentation_profile = augmentation_profile
 
     def __len__(self) -> int:
         return len(self._dataset)
@@ -285,14 +250,6 @@ class _Seq2LabelTrainingDataset(Dataset):
             raise TrainingContractError(
                 "target sequence must contain one 128x128 frame per horizon"
             )
-        if self.augmentation_profile is not None:
-            combined = np.concatenate((observed, target), axis=0)[:, 0]
-            augmented = augment_prediction_sequence(
-                combined,
-                self.augmentation_profile,
-                resize_frame=_opencv_resize_frame,
-            )
-            observed = augmented[: self.input_steps, np.newaxis]
         observed_array = np.ascontiguousarray(observed, dtype=np.float32)
         labels = self._labels5[self._windows[index].start_position]
         return (
@@ -384,7 +341,6 @@ def _fit_seq2label_configured(
     *,
     device: str | torch.device,
     profile: Seq2LabelTrainingContract,
-    class_weights: torch.Tensor,
     checkpoint_dir: str | Path,
 ) -> Seq2LabelFitSummary:
 
@@ -397,7 +353,6 @@ def _fit_seq2label_configured(
     criterion = LabelSmoothingCrossEntropy(
         num_classes=profile.num_classes,
         smoothing=profile.label_smoothing,
-        class_weights=class_weights,
     )
     optimizer = build_seq2label_optimizer(model, profile)
     scheduler = build_predictor_scheduler(optimizer, profile)  # type: ignore[arg-type]
@@ -515,7 +470,6 @@ def fit_direct_seq2label(
     frame_labels: np.ndarray,
     checkpoint_dir: str | Path,
     profile: Seq2LabelTrainingContract = SEQ2LABEL_TRAINING,
-    augmentation_profile: PredictionAugmentationContract = BLOCKED_RUNNER_AUGMENTATION,
     frames_per_second: int = FRAMES_PER_SECOND,
     device: str | torch.device | None = None,
     seed: int = PAPER_SEED,
@@ -572,7 +526,6 @@ def fit_direct_seq2label(
         labels5,
         input_steps=profile.input_steps,
         horizons=profile.horizons,
-        augmentation_profile=augmentation_profile,
     )
     validation_dataset = _Seq2LabelTrainingDataset(
         PredictionDataset(bundle, validation_windows),
@@ -580,7 +533,6 @@ def fit_direct_seq2label(
         labels5,
         input_steps=profile.input_steps,
         horizons=profile.horizons,
-        augmentation_profile=None,
     )
     training_loader = DataLoader(
         training_dataset,
@@ -593,17 +545,6 @@ def fit_direct_seq2label(
         batch_size=profile.batch_size,
         shuffle=False,
         num_workers=profile.num_workers,
-    )
-
-    training_targets = np.concatenate(
-        [
-            np.asarray(labels5[window.start_position], dtype=np.int64)
-            for window in training_windows
-        ]
-    )
-    class_weights = balanced_seq2label_weights(
-        training_targets,
-        num_classes=profile.num_classes,
     )
 
     set_reproducible_seeds(seed)
@@ -619,6 +560,5 @@ def fit_direct_seq2label(
         validation_loader,
         device=resolved_device,
         profile=profile,
-        class_weights=class_weights,
         checkpoint_dir=checkpoint_dir,
     )

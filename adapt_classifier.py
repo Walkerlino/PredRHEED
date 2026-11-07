@@ -8,7 +8,7 @@ from zipfile import BadZipFile
 import numpy as np
 
 from predrheed.data.adaptation import AdaptationBundle
-from predrheed.revision_cli import (
+from predrheed.cli import (
     _device_argument,
     _paths_refer_to_same_file,
     _resolve_path,

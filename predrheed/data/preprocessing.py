@@ -137,15 +137,15 @@ def estimate_center(
 
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class FrameQualityChecker:
 
-    overexposure_ratio: float = 0.3
-    underexposure_ratio: float = 0.55
-    blur_threshold: float = 5
+    overexposure_ratio: float
+    underexposure_ratio: float
+    blur_threshold: float
     brightness_range: tuple[float, float] = (15, 250)
-    overexposure_pixel_value: int = 240
-    underexposure_pixel_value: int = 30
+    overexposure_pixel_value: int
+    underexposure_pixel_value: int
 
     def __post_init__(self) -> None:
         for name in ("overexposure_ratio", "underexposure_ratio"):
@@ -290,7 +290,7 @@ def process_second(
             f"expected {frame_count} frames, got {len(validated)}"
         )
     if checker is None:
-        checker = FrameQualityChecker()
+        raise PreprocessingError("a FrameQualityChecker with explicit thresholds must be supplied")
 
     frame_quality, good_frames, good_indices, bad_indices = _assess_frames(
         validated, checker
@@ -334,7 +334,7 @@ def average_second(
             f"expected {frame_count} frames, got {len(validated)}"
         )
     if checker is None:
-        checker = FrameQualityChecker()
+        raise PreprocessingError("a FrameQualityChecker with explicit thresholds must be supplied")
     frame_quality, good_frames, _, _ = _assess_frames(validated, checker)
     return _weighted_average_frame(validated, frame_quality, good_frames)
 

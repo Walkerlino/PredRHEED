@@ -13,7 +13,7 @@ import torch
 from predrheed.data.preprocessing import _atomic_write_npz
 from predrheed.evaluation.cascade import _validate_history, run_five_second_cascade
 from predrheed.models import CNNTransformer, MSAMConvLSTM
-from predrheed.revision_cli import (
+from predrheed.cli import (
     _device_argument,
     _revalidate_output_target,
     _validate_output_target,

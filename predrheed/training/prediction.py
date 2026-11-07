@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -27,107 +26,12 @@ from predrheed.training.common import (
 )
 
 
-@dataclass(frozen=True, slots=True)
-class PredictionAugmentationContract:
-
-    source_name: Literal["direct_v3", "blocked_runner"]
-    horizontal_flip_probability: float
-    brightness_range: tuple[float, float] = (0.9, 1.1)
-    noise_std: float = 0.01
-    crop_size: int = 112
-    crop_probability: float = 0.5
-    clamp_range: tuple[float, float] = (0.0, 1.0)
-
-
-DIRECT_V3_AUGMENTATION = PredictionAugmentationContract(
-    source_name="direct_v3",
-    horizontal_flip_probability=0.5,
-)
-
-BLOCKED_RUNNER_AUGMENTATION = PredictionAugmentationContract(
-    source_name="blocked_runner",
-    horizontal_flip_probability=0.0,
-)
-
 
 PredictorModelName = Literal[
     "msam_convlstm",
     "sa_convlstm",
     "simvp",
 ]
-
-
-ResizeFrame = Callable[[np.ndarray, tuple[int, int]], np.ndarray]
-
-
-def augment_prediction_sequence(
-    sequence: np.ndarray,
-    profile: PredictionAugmentationContract,
-    *,
-    resize_frame: ResizeFrame,
-) -> np.ndarray:
-
-    if sequence.ndim != 3:
-        raise TrainingContractError("prediction sequence must have shape (T, H, W)")
-    if not np.issubdtype(sequence.dtype, np.floating):
-        raise TrainingContractError("prediction sequence must use a floating dtype")
-    augmented = sequence.astype(np.float32, copy=True)
-
-    if (
-        profile.horizontal_flip_probability > 0
-        and np.random.rand() < profile.horizontal_flip_probability
-    ):
-        augmented = augmented[:, :, ::-1].copy()
-
-    brightness = np.random.uniform(*profile.brightness_range)
-    low, high = profile.clamp_range
-    augmented = np.clip(augmented * brightness, low, high)
-
-    noise = np.random.normal(0.0, profile.noise_std, augmented.shape).astype(
-        np.float32
-    )
-    augmented = np.clip(augmented + noise, low, high)
-
-    if np.random.rand() < profile.crop_probability:
-        time_steps, height, width = augmented.shape
-        if height < profile.crop_size or width < profile.crop_size:
-            raise TrainingContractError(
-                "sequence dimensions must be at least as large as crop_size"
-            )
-        y_start = np.random.randint(0, height - profile.crop_size + 1)
-        x_start = np.random.randint(0, width - profile.crop_size + 1)
-        cropped = augmented[
-            :,
-            y_start : y_start + profile.crop_size,
-            x_start : x_start + profile.crop_size,
-        ]
-        resized = np.zeros_like(augmented)
-        for time_index in range(time_steps):
-            resized_frame = resize_frame(cropped[time_index], (width, height))
-            if resized_frame.shape != (height, width):
-                raise TrainingContractError(
-                    "resize_frame must return an array with the requested shape"
-                )
-            resized[time_index] = resized_frame
-        augmented = resized
-
-    return augmented.astype(np.float32, copy=False)
-
-
-def _opencv_resize_frame(
-    frame: np.ndarray,
-    size: tuple[int, int],
-) -> np.ndarray:
-
-    import cv2
-
-    resized = cv2.resize(frame, size, interpolation=cv2.INTER_LINEAR)
-    expected_shape = (size[1], size[0])
-    if resized.shape != expected_shape:
-        raise TrainingContractError(
-            "OpenCV resize did not return the requested frame shape"
-        )
-    return resized
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,12 +138,10 @@ class _PredictionTrainingDataset(Dataset):
         *,
         input_steps: int,
         target_steps: int,
-        augmentation_profile: PredictionAugmentationContract | None,
     ) -> None:
         self._dataset = dataset
         self.input_steps = input_steps
         self.target_steps = target_steps
-        self.augmentation_profile = augmentation_profile
 
     def __len__(self) -> int:
         return len(self._dataset)
@@ -252,15 +154,6 @@ class _PredictionTrainingDataset(Dataset):
             raise TrainingContractError(
                 "target sequence does not match the configured forecast horizon"
             )
-        if self.augmentation_profile is not None:
-            combined = np.concatenate((observed, target), axis=0)[:, 0]
-            augmented = augment_prediction_sequence(
-                combined,
-                self.augmentation_profile,
-                resize_frame=_opencv_resize_frame,
-            )
-            observed = augmented[: self.input_steps, np.newaxis]
-            target = augmented[self.input_steps :, np.newaxis]
         observed_array = np.ascontiguousarray(observed, dtype=np.float32)
         target_array = np.ascontiguousarray(target, dtype=np.float32)
         return torch.from_numpy(observed_array), torch.from_numpy(target_array)
@@ -604,7 +497,6 @@ def fit_predictor(
     model_name: PredictorModelName = "msam_convlstm",
     bundle: SequenceBundle,
     profile: PredictorTrainingContract,
-    augmentation_profile: PredictionAugmentationContract,
     checkpoint_path: str | Path,
     device: str | torch.device | None = None,
     seed: int = PAPER_SEED,
@@ -633,23 +525,20 @@ def fit_predictor(
         PredictionDataset(bundle, training_windows),
         input_steps=15,
         target_steps=profile.forecast_horizon_seconds,
-        augmentation_profile=augmentation_profile,
     )
     validation_dataset = _PredictionTrainingDataset(
         PredictionDataset(bundle, validation_windows),
         input_steps=15,
         target_steps=profile.forecast_horizon_seconds,
-        augmentation_profile=None,
     )
     training_loader_kwargs: dict[str, object] = {
         "batch_size": profile.batch_size,
         "shuffle": True,
         "num_workers": profile.num_workers,
     }
-    if augmentation_profile == BLOCKED_RUNNER_AUGMENTATION:
-        shuffle_generator = torch.Generator()
-        shuffle_generator.manual_seed(seed)
-        training_loader_kwargs["generator"] = shuffle_generator
+    shuffle_generator = torch.Generator()
+    shuffle_generator.manual_seed(seed)
+    training_loader_kwargs["generator"] = shuffle_generator
     training_loader = DataLoader(training_dataset, **training_loader_kwargs)
     validation_loader = DataLoader(
         validation_dataset,

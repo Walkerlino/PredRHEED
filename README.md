@@ -5,8 +5,7 @@ monitoring during ScAlN molecular beam epitaxy. `MSAMConvLSTM` predicts future
 frames, and `CNNTransformer` classifies them as `streaky`, `transition`, or
 `spotty`. The evaluated end-to-end forecast horizon is 5 seconds.
 
-The comparison models are `CNNOnly`, `TransformerOnly`, `SAConvLSTM`, and 
-`SimVP`.
+The comparison models are `SAConvLSTM` and `SimVP`.
 
 ```text
 PredRHEED-Model/
@@ -51,7 +50,7 @@ with `python` from this directory. Package installation is optional.
 | 3 | `run_cascade.py` | Load both checkpoints and predict five future pattern labels |
 | 4 | `run_analysis.py` | Run `ablation`, `seq2label`, or `analyze` with the required inputs |
 
-[Commands and evaluation rules](docs/revision_analysis.md) give complete
+[Commands and evaluation rules](docs/usage.md) give complete
 examples. Use `python SCRIPT.py --help` for options. CUDA is used when available, with CPU fallback.
 
 ## Data and weights
@@ -62,6 +61,10 @@ Supply experimental frames, labels, and checkpoints using the
 [data contract](docs/data_contract.md). Keep these inputs and generated
 outputs outside this repository. Cascade outputs
 must be combined with real reference data and grouping IDs before `analyze`.
+
+The released training and adaptation scripts omit some settings used for the
+reported training runs. These settings are available from the corresponding
+authors upon reasonable request.
 
 ## Citation
 

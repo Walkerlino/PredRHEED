@@ -68,3 +68,6 @@ must be combined with real reference data and grouping IDs before `analyze`.
 P. Gao, M. M. H. Tanim, W. Wang, G. Baker, J. Chen, Z. Wang, J. Liu, Y. Wei,
 D. Wang, Q. Qu, Z. Mi. Deep Learning Assisted Prediction of Reflection
 High-Energy Electron Diffraction Patterns During Heteroepitaxy.
+
+## PS
+All rights reserved: reuse requires written permission from the corresponding authors.

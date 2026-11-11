@@ -18,11 +18,5 @@ The environment is Windows 11 Pro 64-bit, Python 3.10.19,
 PyTorch 2.9.1 with CUDA 13.0 and cuDNN 9.12.0, and one RTX 5090 with 32 GB
 of memory. 
 
-## Citation
-
-P. Gao, M. M. H. Tanim, W. Wang, G. Baker, J. Chen, Z. Wang, J. Liu, Y. Wei,
-D. Wang, Q. Qu, Z. Mi. Deep Learning Assisted Prediction of Reflection
-High-Energy Electron Diffraction Patterns During Heteroepitaxy.
-
 ## PS
 All rights reserved: reuse requires written permission from the corresponding authors.

@@ -39,15 +39,6 @@ of memory.
 | 3 | `run_cascade.py` | Load both checkpoints and predict five future pattern labels |
 | 4 | `run_analysis.py` | Run `ablation`, `seq2label`, or `analyze` with the required inputs |
 
-## Data and weights
-
-The recorded [split assignments](docs/split_manifest.csv) and
-[30 cascade test windows](docs/cascade_test_windows.csv) are included.
-Supply experimental frames, labels, and checkpoints using the
-[data contract](docs/data_contract.md). Keep these inputs and generated
-outputs outside this repository. Cascade outputs
-must be combined with real reference data and grouping IDs before `analyze`.
-
 ## Citation
 
 P. Gao, M. M. H. Tanim, W. Wang, G. Baker, J. Chen, Z. Wang, J. Liu, Y. Wei,
